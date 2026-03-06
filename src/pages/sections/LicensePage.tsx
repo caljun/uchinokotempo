@@ -247,7 +247,7 @@ export default function LicensePage() {
       </main>
 
       {/* 固定保存バー */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-3 max-w-2xl mx-auto w-full">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 pt-3 pb-safe-bar flex items-center gap-3 max-w-2xl mx-auto w-full">
         {error && <p className="text-xs text-red-500 flex-1">{error}</p>}
         {saved && <p className="text-xs text-green-600 flex-1">保存しました</p>}
         {!error && !saved && <div className="flex-1" />}

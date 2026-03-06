@@ -112,12 +112,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u)
-      if (u) {
-        await fetchShop(u.uid)
-      } else {
+      try {
+        if (u) {
+          await fetchShop(u.uid)
+        } else {
+          setShop(null)
+        }
+      } catch (err) {
+        console.error('fetchShop error:', err)
         setShop(null)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     })
     return unsub
   }, [])

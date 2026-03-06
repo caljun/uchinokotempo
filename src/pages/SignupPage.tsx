@@ -256,7 +256,7 @@ export default function SignupPage() {
 
       {/* コンテンツ */}
       <div className="flex-1 flex items-start justify-center px-4 py-10">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 w-full max-w-md">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-8 w-full max-w-md">
           <StepIndicator step={step} />
 
           {/* Step 1 */}

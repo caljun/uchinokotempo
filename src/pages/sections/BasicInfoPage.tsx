@@ -163,7 +163,7 @@ function Field({ label, required, children }: { label: string; required?: boolea
 const inputClass = 'w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300'
 
 export default function BasicInfoPage() {
-  const { shop, updateShop } = useAuth()
+  const { shop, updateShop, loading: authLoading } = useAuth()
   const [form, setForm] = useState<FormState | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -266,7 +266,10 @@ export default function BasicInfoPage() {
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <Header showBack title="基本情報" />
         <main className="flex-1 flex items-center justify-center">
-          <p className="text-sm text-gray-400">読み込み中...</p>
+          {!authLoading && !shop
+            ? <p className="text-sm text-red-400">店舗データが取得できませんでした</p>
+            : <p className="text-sm text-gray-400">読み込み中...</p>
+          }
         </main>
       </div>
     )
@@ -402,7 +405,7 @@ export default function BasicInfoPage() {
       </main>
 
       {/* 固定保存バー */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-3 max-w-2xl mx-auto w-full">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 pt-3 pb-safe-bar flex items-center gap-3 max-w-2xl mx-auto w-full">
         {error && <p className="text-xs text-red-500 flex-1">{error}</p>}
         {saved && <p className="text-xs text-green-600 flex-1">保存しました</p>}
         {!error && !saved && <div className="flex-1" />}
