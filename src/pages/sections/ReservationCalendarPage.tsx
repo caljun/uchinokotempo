@@ -12,12 +12,10 @@ const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'frida
 const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 const DEFAULT_CAPACITY = 3
 
-// ダミーデータ確認用フラグ（実データ接続後はfalseに）
-const USE_DUMMY = true
-
 type DayKey = typeof DAY_KEYS[number]
 
 interface DogInfo {
+  name?: string
   breed?: string
   age?: number
   gender?: 'male' | 'female'
@@ -27,124 +25,63 @@ interface DogInfo {
   difficultyRank?: string
 }
 
+interface OwnerInfo {
+  name?: string
+  phone?: string
+  email?: string
+}
+
 interface PaymentInfo {
   status?: 'succeeded' | 'pending'
   amount?: number
+  clientSecret?: string
 }
 
 interface Reservation {
   id: string
   status: string
+  userId?: string
+  dogId?: string
+  // フラットフィールド（旧形式）
   dogName?: string
   dogPhoto?: string
-  selectedDate: { toDate: () => Date } | string | null
-  selectedTime?: string
-  serviceType?: string
-  serviceName?: string
   ownerName?: string
   ownerPhone?: string
+  selectedTime?: string
+  // ISO8601形式の selectedDate（iOSから来る）
+  selectedDate: { toDate: () => Date } | string | null
+  serviceType?: string
+  serviceName?: string
+  servicePrice?: number
   createdAt?: { toDate: () => Date } | string | null
   paymentInfo?: PaymentInfo | null
   address?: string
+  // ネストされたオブジェクト（iOS形式）
   dogInfo?: DogInfo
+  ownerInfo?: OwnerInfo
 }
 
-// ─── ダミーデータ ───────────────────────────────────────────
-const today = new Date()
-const pad = (n: number) => String(n).padStart(2, '0')
-const ds = (offsetDays: number) => {
-  const d = new Date(today)
-  d.setDate(d.getDate() + offsetDays)
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+// ─── フィールド正規化ヘルパー ──────────────────────────────────────────────────
+
+/** 予約データからフラットな dogName を取得 */
+function getDogName(r: Reservation): string {
+  return r.dogName || r.dogInfo?.name || '未設定'
 }
 
-const DUMMY_RESERVATIONS: Reservation[] = [
-  {
-    id: 'dummy-1',
-    status: 'confirmed',
-    dogName: 'ポチ',
-    dogPhoto: '',
-    selectedDate: ds(0),
-    selectedTime: '10:00',
-    serviceType: 'inStore',
-    serviceName: 'トリミングコース（シャンプー込み）',
-    ownerName: '田中 太郎',
-    ownerPhone: '090-1234-5678',
-    createdAt: ds(-3),
-    paymentInfo: { status: 'succeeded', amount: 8000 },
-    dogInfo: { breed: 'トイプードル', age: 3, gender: 'male', neutered: true, weight: 3.2, temperamentType: 'リーダー', difficultyRank: 'A' },
-  },
-  {
-    id: 'dummy-2',
-    status: 'pending',
-    dogName: 'さくら',
-    dogPhoto: '',
-    selectedDate: ds(0),
-    selectedTime: '14:00',
-    serviceType: 'visit',
-    serviceName: '出張トレーニング',
-    ownerName: '山田 花子',
-    ownerPhone: '080-9876-5432',
-    createdAt: ds(-1),
-    paymentInfo: null,
-    address: '東京都渋谷区〇〇町1-2-3',
-    dogInfo: { breed: '柴犬', age: 2, gender: 'female', neutered: false, weight: 8.5, temperamentType: '市民', difficultyRank: 'B' },
-  },
-  {
-    id: 'dummy-3',
-    status: 'confirmed',
-    dogName: 'まる',
-    dogPhoto: '',
-    selectedDate: ds(3),
-    selectedTime: '11:00',
-    serviceType: 'inStore',
-    serviceName: 'シャンプーコース',
-    ownerName: '鈴木 次郎',
-    ownerPhone: '070-5555-4444',
-    createdAt: ds(-2),
-    paymentInfo: { status: 'pending', amount: 5000 },
-    dogInfo: { breed: 'チワワ', age: 5, gender: 'male', neutered: true, weight: 2.1, temperamentType: '守られ', difficultyRank: 'C' },
-  },
-  {
-    id: 'dummy-4',
-    status: 'confirmed',
-    dogName: 'ハナ',
-    dogPhoto: '',
-    selectedDate: ds(3),
-    selectedTime: '15:00',
-    serviceType: 'inStore',
-    serviceName: 'トリミングコース（シャンプー込み）',
-    ownerName: '佐藤 美咲',
-    ownerPhone: '090-1111-2222',
-    createdAt: ds(-5),
-    paymentInfo: { status: 'succeeded', amount: 8000 },
-    dogInfo: { breed: 'ポメラニアン', age: 4, gender: 'female', neutered: true, weight: 2.8, temperamentType: '右腕', difficultyRank: 'A' },
-  },
-  {
-    id: 'dummy-5',
-    status: 'completed',
-    dogName: 'コタロウ',
-    dogPhoto: '',
-    selectedDate: ds(-2),
-    selectedTime: '13:00',
-    serviceType: 'inStore',
-    serviceName: 'カットコース',
-    ownerName: '伊藤 健一',
-    ownerPhone: '080-3333-4444',
-    createdAt: ds(-10),
-    paymentInfo: { status: 'succeeded', amount: 6000 },
-    dogInfo: { breed: 'ミニチュアシュナウザー', age: 7, gender: 'male', neutered: true, weight: 7.0, temperamentType: 'リーダー', difficultyRank: 'B' },
-  },
-]
-// ────────────────────────────────────────────────────────────
-
-const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  pending:   { label: '申請中', cls: 'bg-amber-50 text-amber-600' },
-  confirmed: { label: '確定',   cls: 'bg-blue-50 text-blue-600' },
-  completed: { label: '完了',   cls: 'bg-green-50 text-green-600' },
-  cancelled: { label: 'キャンセル', cls: 'bg-red-50 text-red-500' },
+/** 予約データからフラットな ownerName を取得 */
+function getOwnerName(r: Reservation): string {
+  return r.ownerName || r.ownerInfo?.name || '-'
 }
 
+/** 予約データからフラットな ownerPhone を取得 */
+function getOwnerPhone(r: Reservation): string {
+  return r.ownerPhone || r.ownerInfo?.phone || '-'
+}
+
+/**
+ * ISO8601文字列または Firestore Timestamp から YYYY-MM-DD を取得
+ * iOS: "2025-12-29T10:00:00+09:00" → "2025-12-29"
+ */
 function toDateStr(val: Reservation['selectedDate']): string | null {
   if (!val) return null
   if (typeof val === 'string') return val.substring(0, 10)
@@ -154,6 +91,23 @@ function toDateStr(val: Reservation['selectedDate']): string | null {
   }
   return null
 }
+
+/**
+ * ISO8601文字列から時刻 HH:mm を抽出
+ * 例: "2025-12-29T10:00:00+09:00" → "10:00"
+ */
+function extractTime(val: Reservation['selectedDate']): string | null {
+  if (!val) return null
+  // 既に selectedTime フィールドがある場合（旧形式）はそちらを使う
+  const str = typeof val === 'string' ? val : null
+  if (!str) return null
+  const tIdx = str.indexOf('T')
+  if (tIdx < 0) return null
+  const timePart = str.substring(tIdx + 1, tIdx + 6) // "HH:mm"
+  return timePart.length === 5 ? timePart : null
+}
+
+const pad = (n: number) => String(n).padStart(2, '0')
 
 function toDisplayDate(val: Reservation['createdAt']): string {
   if (!val) return '-'
@@ -168,12 +122,23 @@ function isClosedDay(dow: number, openHours: ShopProfile['openHours']): boolean 
   return openHours[DAY_KEYS[dow] as DayKey] === null
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_MAP[status] ?? { label: status, cls: 'bg-gray-100 text-gray-500' }
+const STATUS_MAP: Record<string, { label: string; cls: string }> = {
+  pending:   { label: '申請中', cls: 'bg-amber-50 text-amber-600' },
+  confirmed: { label: '確定',   cls: 'bg-blue-50 text-blue-600' },
+  completed: { label: '完了',   cls: 'bg-green-50 text-green-600' },
+  cancelled: { label: 'キャンセル', cls: 'bg-red-50 text-red-500' },
+  canceled:  { label: 'キャンセル', cls: 'bg-red-50 text-red-500' },
+}
+
+function StatusBadge({ status, paymentStatus }: { status: string; paymentStatus?: string }) {
+  // paymentInfo.succeeded → 実質 completed
+  const effectiveStatus = (status === 'confirmed' && paymentStatus === 'succeeded') ? 'completed' : status
+  const s = STATUS_MAP[effectiveStatus] ?? { label: effectiveStatus, cls: 'bg-gray-100 text-gray-500' }
   return <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${s.cls}`}>{s.label}</span>
 }
 
-// ─── 予約詳細モーダル ────────────────────────────────────────
+// ─── 予約詳細モーダル ────────────────────────────────────────────────────────
+
 function ReservationDetailModal({ r, onClose }: { r: Reservation; onClose: () => void }) {
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
@@ -195,13 +160,17 @@ function ReservationDetailModal({ r, onClose }: { r: Reservation; onClose: () =>
 
   const dog = r.dogInfo
   const payment = r.paymentInfo
+  const isPaid = payment?.status === 'succeeded'
+  const effectiveStatus = (r.status === 'confirmed' && isPaid) ? 'completed' : r.status
 
+  // 日時ラベル（selectedDate ISO8601 または selectedTime フィールド）
   const dateLabel = (() => {
     const ds = toDateStr(r.selectedDate)
     if (!ds) return '-'
     const d = new Date(ds)
     const dow = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()]
-    return `${d.getMonth() + 1}月${d.getDate()}日（${dow}）${r.selectedTime ? ' ' + r.selectedTime : ''}`
+    const time = r.selectedTime || extractTime(r.selectedDate)
+    return `${d.getMonth() + 1}月${d.getDate()}日（${dow}）${time ? ' ' + time : ''}`
   })()
 
   const genderLabel = dog?.gender === 'male' ? 'オス' : dog?.gender === 'female' ? 'メス' : '-'
@@ -223,14 +192,14 @@ function ReservationDetailModal({ r, onClose }: { r: Reservation; onClose: () =>
           {/* 犬・ステータス */}
           <div className="flex items-center gap-4 px-5 py-4 border-b border-gray-50">
             {r.dogPhoto
-              ? <img src={r.dogPhoto} alt={r.dogName} className="w-16 h-16 rounded-full object-cover shrink-0" />
+              ? <img src={r.dogPhoto} alt={getDogName(r)} className="w-16 h-16 rounded-full object-cover shrink-0" />
               : <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 shrink-0 flex items-center justify-center text-2xl">🐕</div>
             }
             <div className="flex-1 min-w-0">
-              <p className="text-lg font-bold text-gray-900">{r.dogName || '未設定'}</p>
-              {dog?.breed && <p className="text-xs text-gray-400">{dog.breed}</p>}
+              <p className="text-lg font-bold text-gray-900">{getDogName(r)}</p>
+              {(dog?.breed) && <p className="text-xs text-gray-400">{dog.breed}</p>}
             </div>
-            <StatusBadge status={r.status} />
+            <StatusBadge status={r.status} paymentStatus={payment?.status} />
           </div>
 
           <div className="p-5 space-y-4">
@@ -258,8 +227,8 @@ function ReservationDetailModal({ r, onClose }: { r: Reservation; onClose: () =>
             <section>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">飼い主</p>
               <div className="bg-gray-50 rounded-xl divide-y divide-gray-100">
-                <Row label="氏名" value={r.ownerName || '-'} />
-                <Row label="電話" value={r.ownerPhone || '-'} />
+                <Row label="氏名" value={getOwnerName(r)} />
+                <Row label="電話" value={getOwnerPhone(r)} />
               </div>
             </section>
 
@@ -268,19 +237,21 @@ function ReservationDetailModal({ r, onClose }: { r: Reservation; onClose: () =>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">支払い</p>
               <div className="bg-gray-50 rounded-xl divide-y divide-gray-100">
                 <Row label="状況" value={
-                  sent
-                    ? <span className="text-xs font-bold text-amber-600">支払い待ち</span>
-                    : payment?.status === 'succeeded'
+                  isPaid
                     ? <span className="text-xs font-bold text-green-600">支払い完了</span>
-                    : payment?.status === 'pending'
+                    : sent || payment?.status === 'pending'
                     ? <span className="text-xs font-bold text-amber-600">支払い待ち</span>
                     : <span className="text-xs text-gray-400">未請求</span>
                 } />
                 {payment?.amount != null && (
                   <Row label="金額" value={`¥${payment.amount.toLocaleString()}`} />
                 )}
+                {r.servicePrice != null && payment?.amount == null && (
+                  <Row label="サービス料金" value={`¥${r.servicePrice.toLocaleString()}`} />
+                )}
               </div>
-              {!payment && !sent && (
+              {/* 請求書ボタン: 未請求（paymentInfo なし）かつ 来店型かつ未送信 */}
+              {!payment && !sent && r.serviceType !== 'visit' && (
                 <button
                   onClick={handleSendInvoice}
                   disabled={sending}
@@ -288,6 +259,17 @@ function ReservationDetailModal({ r, onClose }: { r: Reservation; onClose: () =>
                 >
                   <Send size={14} />
                   {sending ? '送信中...' : '請求書を送る'}
+                </button>
+              )}
+              {/* payment.status === 'pending'（未払い）でも再送可能にする */}
+              {payment?.status === 'pending' && !sent && !isPaid && (
+                <button
+                  onClick={handleSendInvoice}
+                  disabled={sending}
+                  className="mt-2 w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-bold py-2.5 rounded-xl transition-colors"
+                >
+                  <Send size={14} />
+                  {sending ? '送信中...' : '請求書を再送する'}
                 </button>
               )}
               {sent && (
@@ -301,7 +283,7 @@ function ReservationDetailModal({ r, onClose }: { r: Reservation; onClose: () =>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">ウチの子情報</p>
                 <div className="bg-gray-50 rounded-xl divide-y divide-gray-100">
                   {dog.age != null && <Row label="年齢" value={`${dog.age}歳`} />}
-                  <Row label="性別" value={`${genderLabel}${neuteredLabel ? '　' + neuteredLabel : ''}`} />
+                  {dog.gender && <Row label="性別" value={`${genderLabel}${neuteredLabel ? '　' + neuteredLabel : ''}`} />}
                   {dog.weight != null && <Row label="体重" value={`${dog.weight}kg`} />}
                   {dog.temperamentType && <Row label="性格タイプ" value={dog.temperamentType} />}
                   {dog.difficultyRank && (
@@ -316,6 +298,13 @@ function ReservationDetailModal({ r, onClose }: { r: Reservation; onClose: () =>
                   )}
                 </div>
               </section>
+            )}
+
+            {/* ステータスが完了の場合のカルテ案内 */}
+            {effectiveStatus === 'completed' && (
+              <div className="bg-green-50 rounded-xl px-4 py-3">
+                <p className="text-xs text-green-700 font-medium">支払い完了 — カルテに来店記録が追加されています</p>
+              </div>
             )}
           </div>
         </div>
@@ -332,7 +321,8 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
     </div>
   )
 }
-// ────────────────────────────────────────────────────────────
+
+// ────────────────────────────────────────────────────────────────────────────
 
 export default function ReservationCalendarPage() {
   const { shop } = useAuth()
@@ -342,9 +332,9 @@ export default function ReservationCalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(
     new Date(todayDate.getFullYear(), todayDate.getMonth(), 1)
   )
-  const [reservations, setReservations] = useState<Reservation[]>(USE_DUMMY ? DUMMY_RESERVATIONS : [])
+  const [reservations, setReservations] = useState<Reservation[]>([])
   const [monthCapacity, setMonthCapacity] = useState(DEFAULT_CAPACITY)
-  const [loading, setLoading] = useState(!USE_DUMMY)
+  const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [detailReservation, setDetailReservation] = useState<Reservation | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -356,20 +346,26 @@ export default function ReservationCalendarPage() {
   const monthStr = `${year}-${pad(month + 1)}`
 
   const loadMonthData = useCallback(async () => {
-    if (!shop || USE_DUMMY) return
+    if (!shop) return
     setLoading(true)
     try {
+      // 月別枠数
       const capSnap = await getDoc(doc(db, 'shops', shop.shopId, 'monthlyCapacities', monthStr))
       const cap = capSnap.exists() ? (capSnap.data().capacity ?? DEFAULT_CAPACITY) : DEFAULT_CAPACITY
       setMonthCapacity(cap)
       setNewCapacity(cap)
 
+      // 予約一覧（この店舗の全予約 → クライアントで当月フィルタ）
       const snap = await getDocs(
         query(collection(db, 'reservations'), where('storeId', '==', shop.shopId))
       )
       const all = snap.docs
         .map(d => ({ id: d.id, ...d.data() } as Reservation))
-        .filter(r => r.status !== 'cancelled' && toDateStr(r.selectedDate)?.startsWith(monthStr))
+        .filter(r => {
+          const s = r.status
+          if (s === 'cancelled' || s === 'canceled') return false
+          return toDateStr(r.selectedDate)?.startsWith(monthStr) ?? false
+        })
       setReservations(all)
     } catch (e) {
       console.error('予約の読み込みエラー:', e)
@@ -415,12 +411,6 @@ export default function ReservationCalendarPage() {
       <Header showBack title="予約カレンダー" />
 
       <main className="flex-1 p-4 md:p-8 max-w-2xl mx-auto w-full pb-8 space-y-4">
-
-        {USE_DUMMY && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
-            <p className="text-xs text-amber-700">ダミーデータ表示中</p>
-          </div>
-        )}
 
         {/* カレンダー本体 */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -527,27 +517,50 @@ export default function ReservationCalendarPage() {
               <div className="py-10 text-center text-sm text-gray-400">予約はありません</div>
             ) : (
               <div className="divide-y divide-gray-50">
-                {selectedReservations.map(r => (
-                  <button
-                    key={r.id}
-                    onClick={() => setDetailReservation(r)}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
-                  >
-                    {r.dogPhoto
-                      ? <img src={r.dogPhoto} alt={r.dogName} className="w-10 h-10 rounded-full object-cover shrink-0" />
-                      : <div className="w-10 h-10 rounded-full bg-orange-50 shrink-0 flex items-center justify-center text-lg">🐕</div>
-                    }
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-gray-800">{r.dogName || '未設定'}</p>
-                      <p className="text-xs text-gray-400 truncate">
-                        {r.selectedTime && `${r.selectedTime}　`}{r.serviceName || (r.serviceType === 'visit' ? '出張型' : '来店型')}
-                      </p>
-                    </div>
-                    <StatusBadge status={r.status} />
-                  </button>
-                ))}
+                {selectedReservations
+                  .slice()
+                  .sort((a, b) => {
+                    const ta = extractTime(a.selectedDate) ?? a.selectedTime ?? ''
+                    const tb = extractTime(b.selectedDate) ?? b.selectedTime ?? ''
+                    return ta.localeCompare(tb)
+                  })
+                  .map(r => {
+                    const time = r.selectedTime || extractTime(r.selectedDate)
+                    const isPaid = r.paymentInfo?.status === 'succeeded'
+                    return (
+                      <button
+                        key={r.id}
+                        onClick={() => setDetailReservation(r)}
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                      >
+                        {r.dogPhoto
+                          ? <img src={r.dogPhoto} alt={getDogName(r)} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                          : <div className="w-10 h-10 rounded-full bg-orange-50 shrink-0 flex items-center justify-center text-lg">🐕</div>
+                        }
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-gray-800">{getDogName(r)}</p>
+                          <p className="text-xs text-gray-400 truncate">
+                            {time && `${time}　`}{r.serviceName || (r.serviceType === 'visit' ? '出張型' : '来店型')}
+                          </p>
+                          {!isPaid && r.serviceType !== 'visit' && r.status !== 'completed' && (
+                            <p className="text-[10px] text-amber-500 font-medium mt-0.5">
+                              {r.paymentInfo?.status === 'pending' ? '支払い待ち' : '未請求'}
+                            </p>
+                          )}
+                        </div>
+                        <StatusBadge status={r.status} paymentStatus={r.paymentInfo?.status} />
+                      </button>
+                    )
+                  })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* 予約なし・初期状態 */}
+        {!loading && reservations.length === 0 && !selectedDate && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 py-12 text-center">
+            <p className="text-sm text-gray-400">この月の予約はありません</p>
           </div>
         )}
       </main>
