@@ -16,6 +16,11 @@ body {
   color: #333;
 }
 
+/* iOS Safari 自動ズーム防止: input font-size を 16px 以上に強制 */
+input, select, textarea {
+  font-size: max(16px, 1em);
+}
+
 /* iOS safe area: fixed 下部バー用 */
 .pb-safe-bar {
   padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));

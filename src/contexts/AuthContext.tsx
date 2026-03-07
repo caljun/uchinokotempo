@@ -7,7 +7,8 @@ import {
   signOut as firebaseSignOut,
 } from 'firebase/auth'
 import { doc, updateDoc, collection, query, where, getDocs, addDoc } from 'firebase/firestore'
-import { auth, db } from '../lib/firebase'
+import { getFunctions, httpsCallable } from 'firebase/functions'
+import { app, auth, db } from '../lib/firebase'
 
 export interface ShopProfile {
   shopId: string
@@ -163,9 +164,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const missing: string[] = []
     if (!shop.photoUrls || shop.photoUrls.length < 1) missing.push('店舗写真が1枚以上必要です')
     if (!shop.services || shop.services.length < 1) missing.push('サービスが1件以上必要です')
-    const hasOpenHours = shop.openHours && Object.values(shop.openHours).some(d => d !== null)
+    const hasOpenHours =
+      (shop.openHours && Object.values(shop.openHours).some(d => d !== null)) ||
+      (!!shop.openHoursDisplay && shop.openHoursDisplay.trim() !== '')
     if (!hasOpenHours) missing.push('営業時間が設定されていません')
-    if (!shop.stripeAccountId) missing.push('Stripe連携が必要です')
+    if (!shop.stripeAccountId) {
+      missing.push('Stripe連携が必要です')
+    } else {
+      try {
+        const fns = getFunctions(app, 'us-central1')
+        const getStatus = httpsCallable(fns, 'getConnectedAccountStatus')
+        const result = await getStatus({ shopId: shop.shopId })
+        const data = result.data as { chargesEnabled: boolean }
+        if (!data.chargesEnabled) missing.push('Stripe本人確認が完了していません')
+      } catch {
+        missing.push('Stripeステータスの確認に失敗しました')
+      }
+    }
     if (shop.license?.status !== 'approved') missing.push('第一種動物取扱業の承認が必要です')
 
     if (missing.length > 0) return { error: missing }

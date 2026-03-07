@@ -13,7 +13,10 @@ interface HeaderProps {
 function getDraftLabel(shop: ShopProfile): string {
   if (!shop.photoUrls || shop.photoUrls.length < 1) return '下書き（写真未設定）'
   if (!shop.services || shop.services.length < 1) return '下書き（サービス未登録）'
-  if (!shop.openHours || !Object.values(shop.openHours).some(d => d !== null)) return '下書き（営業時間未設定）'
+  const hasOpenHours =
+    (shop.openHours && Object.values(shop.openHours).some(d => d !== null)) ||
+    (!!shop.openHoursDisplay && shop.openHoursDisplay.trim() !== '')
+  if (!hasOpenHours) return '下書き（営業時間未設定）'
   if (!shop.stripeAccountId) return '下書き（Stripe未連携）'
   if (shop.license?.status === 'pending') return '下書き（審査中）'
   if (shop.license?.status === 'rejected') return '下書き（審査却下）'
