@@ -89,7 +89,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, shopData: NewShopData) => Promise<void>
   signOut: () => Promise<void>
   reloadShop: () => Promise<void>
-  togglePublish: () => Promise<void>
+  togglePublish: () => Promise<{ error?: string[] }>
   updateShop: (data: Partial<Omit<ShopProfile, 'shopId' | 'ownerId'>>) => Promise<void>
 }
 
@@ -149,11 +149,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user) await fetchShop(user.uid)
   }
 
-  const togglePublish = async () => {
-    if (!user || !shop) return
-    const next = !shop.isPublished
-    await updateDoc(doc(db, 'shops', shop.shopId), { isPublished: next })
-    setShop(prev => prev ? { ...prev, isPublished: next } : prev)
+  const togglePublish = async (): Promise<{ error?: string[] }> => {
+    if (!user || !shop) return {}
+
+    // 公開 → 非公開は無条件で許可
+    if (shop.isPublished) {
+      await updateDoc(doc(db, 'shops', shop.shopId), { isPublished: false })
+      setShop(prev => prev ? { ...prev, isPublished: false } : prev)
+      return {}
+    }
+
+    // 非公開 → 公開：必須条件チェック
+    const missing: string[] = []
+    if (!shop.photoUrls || shop.photoUrls.length < 1) missing.push('店舗写真が1枚以上必要です')
+    if (!shop.services || shop.services.length < 1) missing.push('サービスが1件以上必要です')
+    const hasOpenHours = shop.openHours && Object.values(shop.openHours).some(d => d !== null)
+    if (!hasOpenHours) missing.push('営業時間が設定されていません')
+    if (!shop.stripeAccountId) missing.push('Stripe連携が必要です')
+    if (shop.license?.status !== 'approved') missing.push('第一種動物取扱業の承認が必要です')
+
+    if (missing.length > 0) return { error: missing }
+
+    await updateDoc(doc(db, 'shops', shop.shopId), { isPublished: true })
+    setShop(prev => prev ? { ...prev, isPublished: true } : prev)
+    return {}
   }
 
   const updateShop = async (data: Partial<Omit<ShopProfile, 'shopId' | 'ownerId'>>) => {
