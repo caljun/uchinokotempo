@@ -9,6 +9,9 @@ export default function Footer() {
           <a href="mailto:calderonjunya0602@gmail.com" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
             サポート
           </a>
+          <Link to="/commercial" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            特定商取引法
+          </Link>
           <Link to="/terms" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
             利用規約
           </Link>

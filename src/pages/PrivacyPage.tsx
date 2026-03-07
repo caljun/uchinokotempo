@@ -1,17 +1,12 @@
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import Header from '../components/layout/Header'
+import Footer from '../components/layout/Footer'
 
 export default function PrivacyPage() {
-  const navigate = useNavigate()
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-2xl mx-auto px-6 py-12">
-        <div className="flex items-center gap-2 mb-4">
-          <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-gray-500 hover:text-gray-800 transition-colors">
-            <ArrowLeft size={20} />
-          </button>
-          <h1 className="text-2xl font-bold text-gray-900">プライバシーポリシー</h1>
-        </div>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <Header showBack title="プライバシーポリシー" />
+
+      <main className="flex-1 max-w-2xl mx-auto w-full px-6 py-10">
         <p className="text-sm text-gray-400 mb-10">最終更新日：2026年1月31日</p>
 
         <div className="space-y-8 text-sm text-gray-700 leading-relaxed">
@@ -152,7 +147,9 @@ export default function PrivacyPage() {
           </section>
 
         </div>
-      </div>
+      </main>
+
+      <Footer />
     </div>
   )
 }
