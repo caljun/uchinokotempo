@@ -13,6 +13,8 @@ import ProductsPage from './pages/sections/ProductsPage'
 import HoursPage from './pages/sections/HoursPage'
 import StripePage from './pages/sections/StripePage'
 import LicensePage from './pages/sections/LicensePage'
+import TermsPage from './pages/TermsPage'
+import PrivacyPage from './pages/PrivacyPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -42,6 +44,8 @@ function AppRoutes() {
       <Route path="/home/hours" element={<PrivateRoute><HoursPage /></PrivateRoute>} />
       <Route path="/home/stripe" element={<PrivateRoute><StripePage /></PrivateRoute>} />
       <Route path="/home/license" element={<PrivateRoute><LicensePage /></PrivateRoute>} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
