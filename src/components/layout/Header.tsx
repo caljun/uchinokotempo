@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PawPrint, LogOut, ChevronLeft, X } from 'lucide-react'
+import { PawPrint, ChevronLeft, X, Menu, LogOut, Globe, EyeOff } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import type { ShopProfile } from '../../contexts/AuthContext'
 
@@ -9,7 +9,6 @@ interface HeaderProps {
   title?: string
 }
 
-/** 店舗の公開前ステータスラベルを返す */
 function getDraftLabel(shop: ShopProfile): string {
   if (!shop.photoUrls || shop.photoUrls.length < 1) return '下書き（写真未設定）'
   if (!shop.services || shop.services.length < 1) return '下書き（サービス未登録）'
@@ -26,16 +25,19 @@ function getDraftLabel(shop: ShopProfile): string {
 export default function Header({ showBack = false, title }: HeaderProps) {
   const { shop, loading, signOut, togglePublish } = useAuth()
   const navigate = useNavigate()
+  const [menuOpen, setMenuOpen] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [errors, setErrors] = useState<string[] | null>(null)
 
   const handleSignOut = async () => {
+    setMenuOpen(false)
     if (!confirm('ログアウトしますか？')) return
     await signOut()
     navigate('/')
   }
 
   const handleTogglePublish = async () => {
+    setMenuOpen(false)
     if (publishing) return
     const action = shop?.isPublished ? '非公開にしますか？' : '公開しますか？'
     if (!confirm(action)) return
@@ -66,8 +68,7 @@ export default function Header({ showBack = false, title }: HeaderProps) {
                 onClick={() => navigate('/home')}
                 className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors"
               >
-                <ChevronLeft size={18} />
-                <span className="hidden sm:inline">ホーム</span>
+                <ChevronLeft size={20} />
               </button>
             )}
           </div>
@@ -81,18 +82,19 @@ export default function Header({ showBack = false, title }: HeaderProps) {
             <span className="text-sm">{title ?? 'ウチの子 Business'}</span>
           </button>
 
-          {/* 右: 公開ステータス + ログアウト */}
+          {/* 右: デスクトップはバッジ+ボタン、モバイルはメニュー */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* バッジ */}
+
+            {/* デスクトップのみ: バッジ */}
             {loading ? (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-300 border border-gray-200 whitespace-nowrap">···</span>
+              <span className="hidden sm:inline text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-300 border border-gray-200">···</span>
             ) : shop ? (
-              <span className={`text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${badgeCls}`}>
+              <span className={`hidden sm:inline text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${badgeCls}`}>
                 {badgeLabel}
               </span>
             ) : null}
 
-            {/* 公開切り替えボタン（sm以上） */}
+            {/* デスクトップのみ: 公開切り替えボタン */}
             {!loading && shop && (
               <button
                 onClick={handleTogglePublish}
@@ -107,34 +109,69 @@ export default function Header({ showBack = false, title }: HeaderProps) {
               </button>
             )}
 
-            {/* ログアウト */}
+            {/* デスクトップのみ: ログアウト */}
             <button
               onClick={handleSignOut}
-              className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors ml-1"
+              className="hidden sm:flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors"
               title="ログアウト"
             >
               <LogOut size={16} />
             </button>
+
+            {/* モバイルのみ: メニューボタン */}
+            <div className="sm:hidden relative">
+              <button
+                onClick={() => setMenuOpen(v => !v)}
+                className="p-1.5 text-gray-500 hover:text-gray-800 transition-colors"
+              >
+                <Menu size={20} />
+              </button>
+
+              {menuOpen && (
+                <div className="absolute top-10 right-0 w-56 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50">
+                  {/* ステータス */}
+                  {!loading && shop && (
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <p className="text-xs text-gray-400 mb-1">ステータス</p>
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${badgeCls}`}>
+                        {badgeLabel}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* 公開切り替え */}
+                  {!loading && shop && (
+                    <button
+                      onClick={handleTogglePublish}
+                      disabled={publishing}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left hover:bg-gray-50 transition-colors border-b border-gray-100 disabled:opacity-50"
+                    >
+                      {shop.isPublished
+                        ? <><EyeOff size={16} className="text-gray-400 shrink-0" /><span className="text-gray-700">{publishing ? '処理中...' : '非公開にする'}</span></>
+                        : <><Globe size={16} className="text-[#FF8F0D] shrink-0" /><span className="text-[#FF8F0D] font-medium">{publishing ? '処理中...' : '公開する'}</span></>
+                      }
+                    </button>
+                  )}
+
+                  {/* ログアウト */}
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left hover:bg-gray-50 transition-colors"
+                  >
+                    <LogOut size={16} className="text-red-400 shrink-0" />
+                    <span className="text-red-500">ログアウト</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* モバイル: 公開切り替えボタン */}
-        {!loading && shop && (
-          <div className="sm:hidden border-t border-gray-100 px-4 py-1.5 flex justify-end">
-            <button
-              onClick={handleTogglePublish}
-              disabled={publishing}
-              className={`text-xs font-medium px-3 py-1 rounded-full border transition-colors disabled:opacity-50 ${
-                shop.isPublished
-                  ? 'border-gray-300 text-gray-600'
-                  : 'border-[#FF8F0D] text-[#FF8F0D]'
-              }`}
-            >
-              {publishing ? '処理中...' : shop.isPublished ? '非公開にする' : '公開する'}
-            </button>
-          </div>
-        )}
       </header>
+
+      {/* メニュー外クリックで閉じる */}
+      {menuOpen && (
+        <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+      )}
 
       {/* 公開エラーモーダル */}
       {errors && (

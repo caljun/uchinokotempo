@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import {
   FileText, Dog, CalendarDays, ShoppingBag, Briefcase,
-  Package, Clock, CreditCard, ScrollText,
+  Package, Clock, CreditCard, ScrollText, Info,
 } from 'lucide-react'
 import Header from '../components/layout/Header'
 import Footer from '../components/layout/Footer'
@@ -16,6 +16,7 @@ const GRID_ITEMS = [
   { label: '営業時間設定', icon: Clock, path: '/home/hours', color: 'text-teal-500' },
   { label: 'Stripe本人確認', icon: CreditCard, path: '/home/stripe', color: 'text-violet-500' },
   { label: '第一種動物取扱業', icon: ScrollText, path: '/home/license', color: 'text-amber-600' },
+  { label: 'ご案内', icon: Info, path: '/home/legal', color: 'text-gray-500' },
 ]
 
 export default function HomePage() {

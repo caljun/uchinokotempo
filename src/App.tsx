@@ -13,6 +13,7 @@ import ProductsPage from './pages/sections/ProductsPage'
 import HoursPage from './pages/sections/HoursPage'
 import StripePage from './pages/sections/StripePage'
 import LicensePage from './pages/sections/LicensePage'
+import LegalPage from './pages/sections/LegalPage'
 import TermsPage from './pages/TermsPage'
 import PrivacyPage from './pages/PrivacyPage'
 import CommercialPage from './pages/CommercialPage'
@@ -45,6 +46,7 @@ function AppRoutes() {
       <Route path="/home/hours" element={<PrivateRoute><HoursPage /></PrivateRoute>} />
       <Route path="/home/stripe" element={<PrivateRoute><StripePage /></PrivateRoute>} />
       <Route path="/home/license" element={<PrivateRoute><LicensePage /></PrivateRoute>} />
+      <Route path="/home/legal" element={<PrivateRoute><LegalPage /></PrivateRoute>} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/commercial" element={<CommercialPage />} />
