@@ -6,6 +6,7 @@ import type { ShopProfile } from '../../contexts/AuthContext'
 
 interface HeaderProps {
   showBack?: boolean
+  backPath?: string
   title?: string
 }
 
@@ -22,7 +23,7 @@ function getDraftLabel(shop: ShopProfile): string {
   return '下書き'
 }
 
-export default function Header({ showBack = false, title }: HeaderProps) {
+export default function Header({ showBack = false, backPath, title }: HeaderProps) {
   const { shop, loading, signOut, togglePublish } = useAuth()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -65,7 +66,7 @@ export default function Header({ showBack = false, title }: HeaderProps) {
           <div className="w-20 flex items-center shrink-0">
             {showBack && (
               <button
-                onClick={() => navigate('/home')}
+                onClick={() => navigate(backPath ?? '/home')}
                 className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors"
               >
                 <ChevronLeft size={20} />

@@ -6,6 +6,7 @@ import SignupPage from './pages/SignupPage'
 import HomePage from './pages/HomePage'
 import BasicInfoPage from './pages/sections/BasicInfoPage'
 import KartePage from './pages/sections/KartePage'
+import KarteDetailPage from './pages/sections/KarteDetailPage'
 import ReservationCalendarPage from './pages/sections/ReservationCalendarPage'
 import OrdersPage from './pages/sections/OrdersPage'
 import ServicesPage from './pages/sections/ServicesPage'
@@ -39,6 +40,7 @@ function AppRoutes() {
       <Route path="/home" element={<PrivateRoute><HomePage /></PrivateRoute>} />
       <Route path="/home/basic" element={<PrivateRoute><BasicInfoPage /></PrivateRoute>} />
       <Route path="/home/karte" element={<PrivateRoute><KartePage /></PrivateRoute>} />
+      <Route path="/home/karte/:dogId" element={<PrivateRoute><KarteDetailPage /></PrivateRoute>} />
       <Route path="/home/reservation" element={<PrivateRoute><ReservationCalendarPage /></PrivateRoute>} />
       <Route path="/home/orders" element={<PrivateRoute><OrdersPage /></PrivateRoute>} />
       <Route path="/home/services" element={<PrivateRoute><ServicesPage /></PrivateRoute>} />
