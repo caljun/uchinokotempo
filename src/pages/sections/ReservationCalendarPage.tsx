@@ -333,12 +333,14 @@ export default function ReservationCalendarPage() {
     new Date(todayDate.getFullYear(), todayDate.getMonth(), 1)
   )
   const [reservations, setReservations] = useState<Reservation[]>([])
-  const [monthCapacity, setMonthCapacity] = useState(DEFAULT_CAPACITY)
+  const [inStoreCapacity, setInStoreCapacity] = useState(DEFAULT_CAPACITY)
+  const [visitCapacity, setVisitCapacity] = useState(DEFAULT_CAPACITY)
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [detailReservation, setDetailReservation] = useState<Reservation | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [newCapacity, setNewCapacity] = useState(DEFAULT_CAPACITY)
+  const [newInStoreCapacity, setNewInStoreCapacity] = useState(DEFAULT_CAPACITY)
+  const [newVisitCapacity, setNewVisitCapacity] = useState(DEFAULT_CAPACITY)
   const [savingCapacity, setSavingCapacity] = useState(false)
 
   const year = currentMonth.getFullYear()
@@ -349,11 +351,15 @@ export default function ReservationCalendarPage() {
     if (!shop) return
     setLoading(true)
     try {
-      // 月別枠数
+      // 月別枠数（inStoreCapacity / visitCapacity）
       const capSnap = await getDoc(doc(db, 'shops', shop.shopId, 'monthlyCapacities', monthStr))
-      const cap = capSnap.exists() ? (capSnap.data().capacity ?? DEFAULT_CAPACITY) : DEFAULT_CAPACITY
-      setMonthCapacity(cap)
-      setNewCapacity(cap)
+      const capData = capSnap.exists() ? capSnap.data() : {}
+      const inStore = (capData.inStoreCapacity ?? capData.capacity ?? DEFAULT_CAPACITY) as number
+      const visit = (capData.visitCapacity ?? capData.capacity ?? DEFAULT_CAPACITY) as number
+      setInStoreCapacity(inStore)
+      setVisitCapacity(visit)
+      setNewInStoreCapacity(inStore)
+      setNewVisitCapacity(visit)
 
       // 予約一覧（この店舗の全予約 → クライアントで当月フィルタ）
       const snap = await getDocs(
@@ -382,10 +388,11 @@ export default function ReservationCalendarPage() {
     try {
       await setDoc(
         doc(db, 'shops', shop.shopId, 'monthlyCapacities', monthStr),
-        { capacity: newCapacity, updatedAt: serverTimestamp() },
+        { inStoreCapacity: newInStoreCapacity, visitCapacity: newVisitCapacity, updatedAt: serverTimestamp() },
         { merge: true }
       )
-      setMonthCapacity(newCapacity)
+      setInStoreCapacity(newInStoreCapacity)
+      setVisitCapacity(newVisitCapacity)
       setSettingsOpen(false)
     } finally {
       setSavingCapacity(false)
@@ -396,15 +403,19 @@ export default function ReservationCalendarPage() {
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const todayStr = `${todayDate.getFullYear()}-${pad(todayDate.getMonth() + 1)}-${pad(todayDate.getDate())}`
 
-  const byDate = new Map<string, Reservation[]>()
+  const byDateInStore = new Map<string, Reservation[]>()
+  const byDateVisit = new Map<string, Reservation[]>()
   for (const r of reservations) {
     const ds = toDateStr(r.selectedDate)
     if (!ds) continue
-    if (!byDate.has(ds)) byDate.set(ds, [])
-    byDate.get(ds)!.push(r)
+    const map = r.serviceType === 'visit' ? byDateVisit : byDateInStore
+    if (!map.has(ds)) map.set(ds, [])
+    map.get(ds)!.push(r)
   }
 
-  const selectedReservations = selectedDate ? (byDate.get(selectedDate) ?? []) : []
+  const selectedReservations = selectedDate
+    ? [...(byDateInStore.get(selectedDate) ?? []), ...(byDateVisit.get(selectedDate) ?? [])]
+    : []
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -423,10 +434,10 @@ export default function ReservationCalendarPage() {
             <div className="flex items-center gap-3">
               <span className="text-sm font-bold text-gray-900">{year}年{month + 1}月</span>
               <button
-                onClick={() => { setSettingsOpen(true); setNewCapacity(monthCapacity) }}
+                onClick={() => { setSettingsOpen(true); setNewInStoreCapacity(inStoreCapacity); setNewVisitCapacity(visitCapacity) }}
                 className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 px-2.5 py-1 rounded-lg transition-colors"
               >
-                <Settings size={11} />枠数: {monthCapacity}
+                <Settings size={11} />枠数設定
               </button>
             </div>
             <button onClick={() => setCurrentMonth(new Date(year, month + 1, 1))} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
@@ -459,8 +470,9 @@ export default function ReservationCalendarPage() {
                 const isToday = dateStr === todayStr
                 const isPast = dateStr < todayStr
                 const isSelected = dateStr === selectedDate
-                const count = byDate.get(dateStr)?.length ?? 0
-                const isFull = count >= monthCapacity
+                const inStoreCount = byDateInStore.get(dateStr)?.length ?? 0
+                const visitCount = byDateVisit.get(dateStr)?.length ?? 0
+                const hasAny = inStoreCount > 0 || visitCount > 0
                 const isLastCol = (firstDow + i + 1) % 7 === 0
 
                 return (
@@ -468,7 +480,7 @@ export default function ReservationCalendarPage() {
                     key={dateStr}
                     onClick={() => !closed && setSelectedDate(isSelected ? null : dateStr)}
                     disabled={closed}
-                    className={`relative min-h-[68px] border-b border-r border-gray-50 p-1.5 flex flex-col transition-colors
+                    className={`relative min-h-[76px] border-b border-r border-gray-50 p-1.5 flex flex-col transition-colors
                       ${isLastCol ? 'border-r-0' : ''}
                       ${isSelected ? 'bg-orange-50' : closed ? 'bg-gray-50 cursor-default' : 'hover:bg-orange-50/40'}`}
                   >
@@ -478,12 +490,21 @@ export default function ReservationCalendarPage() {
                     </span>
                     {closed ? (
                       <span className="text-[9px] text-gray-300">休</span>
-                    ) : count > 0 ? (
-                      <span className={`text-[10px] font-bold px-1 py-0.5 rounded self-start ${isFull ? 'bg-red-500 text-white' : 'bg-[#FF8F0D] text-white'}`}>
-                        {count}/{monthCapacity}
-                      </span>
+                    ) : hasAny ? (
+                      <div className="flex flex-col gap-0.5">
+                        {inStoreCount > 0 && (
+                          <span className={`text-[9px] font-bold px-1 py-0.5 rounded self-start ${inStoreCount >= inStoreCapacity ? 'bg-red-500 text-white' : 'bg-[#FF8F0D] text-white'}`}>
+                            来{inStoreCount}/{inStoreCapacity}
+                          </span>
+                        )}
+                        {visitCount > 0 && (
+                          <span className={`text-[9px] font-bold px-1 py-0.5 rounded self-start ${visitCount >= visitCapacity ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`}>
+                            出{visitCount}/{visitCapacity}
+                          </span>
+                        )}
+                      </div>
                     ) : !isPast ? (
-                      <span className="text-[9px] text-gray-300">枠{monthCapacity}</span>
+                      <span className="text-[9px] text-gray-300 leading-tight">来{inStoreCapacity}<br/>出{visitCapacity}</span>
                     ) : null}
                   </button>
                 )
@@ -494,7 +515,7 @@ export default function ReservationCalendarPage() {
 
         {/* 凡例 */}
         <div className="flex gap-4 px-1">
-          {[['bg-[#FF8F0D]', '予約あり'], ['bg-red-500', '満枠'], ['bg-gray-100', '休業日']].map(([color, label]) => (
+          {[['bg-[#FF8F0D]', '来店型'], ['bg-green-500', '出張型'], ['bg-red-500', '満枠'], ['bg-gray-100', '休業日']].map(([color, label]) => (
             <div key={label} className="flex items-center gap-1.5">
               <span className={`w-3 h-3 rounded-sm ${color}`} />
               <span className="text-xs text-gray-400">{label}</span>
@@ -508,7 +529,9 @@ export default function ReservationCalendarPage() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
               <p className="text-sm font-bold text-gray-800">
                 {parseInt(selectedDate.split('-')[1])}月{parseInt(selectedDate.split('-')[2])}日
-                <span className="text-gray-400 font-normal ml-2">{selectedReservations.length}件 / 枠{monthCapacity}</span>
+                <span className="text-gray-400 font-normal ml-2 text-xs">
+                  来店 {byDateInStore.get(selectedDate)?.length ?? 0}/{inStoreCapacity}　出張 {byDateVisit.get(selectedDate)?.length ?? 0}/{visitCapacity}
+                </span>
               </p>
               <button onClick={() => setSelectedDate(null)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
             </div>
@@ -581,15 +604,35 @@ export default function ReservationCalendarPage() {
               <h3 className="text-base font-bold text-gray-900">{year}年{month + 1}月の枠数</h3>
               <button onClick={() => setSettingsOpen(false)} className="text-gray-400"><X size={18} /></button>
             </div>
+            <p className="text-xs text-gray-400 -mt-2">1日あたりのサービス種別ごとの受付可能件数</p>
+
+            {/* 来店型 */}
             <div>
-              <p className="text-xs text-gray-400 mb-3">1日あたりの受付可能件数</p>
-              <div className="flex items-center justify-center gap-6">
-                <button onClick={() => setNewCapacity(c => Math.max(1, c - 1))} className="w-11 h-11 rounded-full border border-gray-200 text-xl font-bold text-gray-600 hover:bg-gray-50">−</button>
-                <span className="text-3xl font-bold text-gray-900 w-10 text-center">{newCapacity}</span>
-                <button onClick={() => setNewCapacity(c => Math.min(10, c + 1))} className="w-11 h-11 rounded-full border border-gray-200 text-xl font-bold text-gray-600 hover:bg-gray-50">＋</button>
+              <div className="flex items-center gap-2 mb-2">
+                <Store size={13} className="text-[#FF8F0D]" />
+                <p className="text-sm font-bold text-gray-700">来店型</p>
               </div>
-              <p className="text-xs text-gray-300 text-center mt-2">1〜10枠</p>
+              <div className="flex items-center justify-center gap-6">
+                <button onClick={() => setNewInStoreCapacity(c => Math.max(1, c - 1))} className="w-11 h-11 rounded-full border border-gray-200 text-xl font-bold text-gray-600 hover:bg-gray-50">−</button>
+                <span className="text-3xl font-bold text-gray-900 w-10 text-center">{newInStoreCapacity}</span>
+                <button onClick={() => setNewInStoreCapacity(c => Math.min(10, c + 1))} className="w-11 h-11 rounded-full border border-gray-200 text-xl font-bold text-gray-600 hover:bg-gray-50">＋</button>
+              </div>
             </div>
+
+            {/* 出張型 */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Car size={13} className="text-green-500" />
+                <p className="text-sm font-bold text-gray-700">出張型</p>
+              </div>
+              <div className="flex items-center justify-center gap-6">
+                <button onClick={() => setNewVisitCapacity(c => Math.max(1, c - 1))} className="w-11 h-11 rounded-full border border-gray-200 text-xl font-bold text-gray-600 hover:bg-gray-50">−</button>
+                <span className="text-3xl font-bold text-gray-900 w-10 text-center">{newVisitCapacity}</span>
+                <button onClick={() => setNewVisitCapacity(c => Math.min(10, c + 1))} className="w-11 h-11 rounded-full border border-gray-200 text-xl font-bold text-gray-600 hover:bg-gray-50">＋</button>
+              </div>
+            </div>
+            <p className="text-xs text-gray-300 text-center">各 1〜10枠</p>
+
             <div className="flex gap-2">
               <button onClick={() => setSettingsOpen(false)} className="flex-1 py-2.5 rounded-full text-sm font-medium border border-gray-200 text-gray-600">キャンセル</button>
               <button onClick={saveCapacity} disabled={savingCapacity} className="flex-1 py-2.5 rounded-full text-sm font-bold bg-[#FF8F0D] hover:bg-[#E67D0B] text-white disabled:opacity-50">
