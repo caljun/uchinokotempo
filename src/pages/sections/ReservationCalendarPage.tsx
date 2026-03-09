@@ -16,6 +16,7 @@ type DayKey = typeof DAY_KEYS[number]
 
 interface DogInfo {
   name?: string
+  photoUrl?: string
   breed?: string
   age?: number
   gender?: 'male' | 'female'
@@ -66,6 +67,11 @@ interface Reservation {
 /** 予約データからフラットな dogName を取得 */
 function getDogName(r: Reservation): string {
   return r.dogName || r.dogInfo?.name || '未設定'
+}
+
+/** 予約データから犬の写真URLを取得（フラット dogPhoto → dogInfo.photoUrl の順） */
+function getDogPhoto(r: Reservation): string | undefined {
+  return r.dogPhoto || r.dogInfo?.photoUrl || undefined
 }
 
 /** 予約データからフラットな ownerName を取得 */
@@ -191,8 +197,8 @@ function ReservationDetailModal({ r, onClose }: { r: Reservation; onClose: () =>
 
           {/* 犬・ステータス */}
           <div className="flex items-center gap-4 px-5 py-4 border-b border-gray-50">
-            {r.dogPhoto
-              ? <img src={r.dogPhoto} alt={getDogName(r)} className="w-16 h-16 rounded-full object-cover shrink-0" />
+            {getDogPhoto(r)
+              ? <img src={getDogPhoto(r)} alt={getDogName(r)} className="w-16 h-16 rounded-full object-cover shrink-0" />
               : <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 shrink-0 flex items-center justify-center text-2xl">🐕</div>
             }
             <div className="flex-1 min-w-0">
@@ -556,8 +562,8 @@ export default function ReservationCalendarPage() {
                         onClick={() => setDetailReservation(r)}
                         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
                       >
-                        {r.dogPhoto
-                          ? <img src={r.dogPhoto} alt={getDogName(r)} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                        {getDogPhoto(r)
+                          ? <img src={getDogPhoto(r)} alt={getDogName(r)} className="w-10 h-10 rounded-full object-cover shrink-0" />
                           : <div className="w-10 h-10 rounded-full bg-orange-50 shrink-0 flex items-center justify-center text-lg">🐕</div>
                         }
                         <div className="flex-1 min-w-0">
