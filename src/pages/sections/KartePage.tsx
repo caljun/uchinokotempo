@@ -113,7 +113,7 @@ function ManualAddModal({
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl p-6 space-y-4">
-        <h3 className="text-base font-bold text-gray-900">来店犬を追加</h3>
+        <h3 className="text-base font-bold text-gray-900">来店した子を追加</h3>
         <div className="space-y-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">犬の名前 <span className="text-red-500">*</span></label>
@@ -281,7 +281,7 @@ export default function KartePage() {
       setDogs(displayList)
     } catch (e) {
       console.error(e)
-      setError('来店犬の読み込みに失敗しました')
+      setError('来店した子の読み込みに失敗しました')
     } finally {
       setLoading(false)
     }
@@ -327,7 +327,7 @@ export default function KartePage() {
           className="w-full flex items-center justify-center gap-2 bg-[#FF8F0D] hover:bg-[#E67D0B] text-white font-bold py-3 rounded-2xl text-sm transition-colors"
         >
           <Plus size={16} />
-          来店犬を手動追加
+          来店した子を手動追加
         </button>
 
         <div className="relative">
@@ -356,7 +356,7 @@ export default function KartePage() {
           <div className="bg-white rounded-2xl border border-gray-100 p-12 flex flex-col items-center gap-3 text-center">
             <Dog size={40} strokeWidth={1.2} className="text-gray-300" />
             <p className="text-sm text-gray-400">
-              {search ? '該当する来店犬がいません' : '来店犬がまだいません'}
+              {search ? '該当する来店した子がいません' : '来店した子がまだいません'}
             </p>
             {!search && (
               <p className="text-xs text-gray-300">決済が完了した予約が自動で登録されます</p>

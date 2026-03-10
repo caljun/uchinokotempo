@@ -36,7 +36,7 @@ export default function PrivacyPage() {
                 </ul>
               </div>
               <div>
-                <h3 className="font-semibold text-gray-800 mb-2">3. 来店犬・カルテ情報</h3>
+                <h3 className="font-semibold text-gray-800 mb-2">3. 来店した子・カルテ情報</h3>
                 <ul className="list-disc list-inside space-y-1 text-gray-600">
                   <li>犬の名前、犬種、体重、性別</li>
                   <li>飼い主名、電話番号</li>

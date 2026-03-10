@@ -165,7 +165,7 @@ function BasicInfoTab({
       )}
 
       {dog.isManual && (
-        <p className="text-xs text-gray-300 text-center">手動追加された来店犬です</p>
+        <p className="text-xs text-gray-300 text-center">手動追加された来店した子です</p>
       )}
     </div>
   )
@@ -565,7 +565,7 @@ function DiaryTab({
   if (!ownerId) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24 text-center px-6">
-        <p className="text-sm text-gray-400">手動追加された来店犬は日記機能を利用できません</p>
+        <p className="text-sm text-gray-400">手動追加された来店した子は日記機能を利用できません</p>
       </div>
     )
   }
