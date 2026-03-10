@@ -99,10 +99,7 @@ function BasicInfoTab({
     return n == null ? base : `${base}（${n ? '去勢/避妊済み' : '未去勢/未避妊'}）`
   }
 
-  if (loading) {
-    return <div className="py-16 text-center text-sm text-gray-400">読み込み中...</div>
-  }
-
+  // 基本データはすぐ表示。fullDog がまだなら診断欄だけスケルトン
   const gl = genderLabel(data.gender, data.neutered)
 
   return (
@@ -125,13 +122,25 @@ function BasicInfoTab({
       </div>
 
       <div className="bg-gray-50 rounded-xl divide-y divide-gray-100">
-        {gl && <Row label="性別" value={gl} />}
-        {data.weight != null && <Row label="体重" value={`${data.weight}kg`} />}
-        {dog.ownerName && <Row label="飼い主" value={dog.ownerName} />}
-        {dog.ownerPhone && <Row label="電話" value={dog.ownerPhone} />}
+        {loading
+          ? <>{gl && <Row label="性別" value={gl} />}{(dog.ownerName || dog.ownerPhone) && (
+              <>{dog.ownerName && <Row label="飼い主" value={dog.ownerName} />}{dog.ownerPhone && <Row label="電話" value={dog.ownerPhone} />}</>
+            )}<div className="px-3 py-2.5 flex justify-between"><span className="text-xs text-gray-300 bg-gray-200 rounded w-10 h-3 animate-pulse" /><span className="text-xs text-gray-300 bg-gray-200 rounded w-16 h-3 animate-pulse" /></div></>
+          : <>{gl && <Row label="性別" value={gl} />}{data.weight != null && <Row label="体重" value={`${data.weight}kg`} />}{dog.ownerName && <Row label="飼い主" value={dog.ownerName} />}{dog.ownerPhone && <Row label="電話" value={dog.ownerPhone} />}</>
+        }
       </div>
 
-      {(data.temperamentType || data.difficultyRank) && (
+      {loading && !dog.isManual && !fullDog && (
+        <div className="space-y-2">
+          <div className="h-3 bg-gray-100 rounded w-12 animate-pulse" />
+          <div className="bg-gray-50 rounded-xl p-3 space-y-2">
+            <div className="h-3 bg-gray-100 rounded w-3/4 animate-pulse" />
+            <div className="h-3 bg-gray-100 rounded w-1/2 animate-pulse" />
+          </div>
+        </div>
+      )}
+
+      {!loading && (data.temperamentType || data.difficultyRank) && (
         <div>
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">診断</p>
           <div className="bg-gray-50 rounded-xl divide-y divide-gray-100">
@@ -533,29 +542,25 @@ function DiaryTab({
   shopId,
   ownerId,
   dogId,
+  diaries: initialDiaries,
+  diariesLoading,
+  diariesError,
+  onDiariesChange,
 }: {
   shopId: string
   ownerId: string | undefined
   dogId: string
+  diaries: ShopDiary[]
+  diariesLoading: boolean
+  diariesError: string
+  onDiariesChange: (diaries: ShopDiary[]) => void
 }) {
-  const [diaries, setDiaries] = useState<ShopDiary[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [selectedDiary, setSelectedDiary] = useState<ShopDiary | null>(null)
 
-  useEffect(() => {
-    if (!ownerId) { setLoading(false); return }
-    setLoading(true)
-    const fn = httpsCallable(getFunctions(app, 'us-central1'), 'getDiariesForShop')
-    fn({ shopId, ownerId, dogId })
-      .then(res => {
-        const { diaries: list } = res.data as { diaries: ShopDiary[] }
-        setDiaries(list)
-      })
-      .catch(e => { console.error(e); setError('日記の読み込みに失敗しました') })
-      .finally(() => setLoading(false))
-  }, [shopId, ownerId, dogId])
+  const diaries = initialDiaries
+  const loading = diariesLoading
+  const error = diariesError
 
   if (!ownerId) {
     return (
@@ -627,7 +632,7 @@ function DiaryTab({
           dogId={dogId}
           onClose={() => setShowCreate(false)}
           onCreated={diary => {
-            setDiaries(prev => [diary, ...prev])
+            onDiariesChange([diary, ...diaries])
             setShowCreate(false)
           }}
         />
@@ -676,7 +681,7 @@ function DiaryTab({
                       try {
                         const fn = httpsCallable(getFunctions(app, 'us-central1'), 'deleteShopDiary')
                         await fn({ shopId, ownerId, dogId, diaryId: selectedDiary.id })
-                        setDiaries(prev => prev.filter(d => d.id !== selectedDiary.id))
+                        onDiariesChange(diaries.filter(d => d.id !== selectedDiary.id))
                         setSelectedDiary(null)
                       } catch (e) {
                         console.error(e)
@@ -730,8 +735,10 @@ export default function KarteDetailPage() {
   })
   const [fullDog, setFullDog] = useState<FullDogData | null>(null)
   const [loadingDog, setLoadingDog] = useState(!state?.isManual && !!state?.ownerId)
-  const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('info')
+  const [diaries, setDiaries] = useState<ShopDiary[]>([])
+  const [diariesLoading, setDiariesLoading] = useState(!state?.isManual && !!state?.ownerId)
+  const [diariesError, setDiariesError] = useState('')
 
   const visitCount = state?.visitCount ?? 0
   const lastVisitDate = state?.lastVisitDate ?? null
@@ -739,7 +746,6 @@ export default function KarteDetailPage() {
   // Load visitingDog doc AND full dog data in parallel
   useEffect(() => {
     if (!shop || !dogId) return
-    setLoading(true)
 
     const ownerIdFromState = state?.ownerId
     const isManualFromState = state?.isManual ?? false
@@ -761,19 +767,28 @@ export default function KarteDetailPage() {
         })
       })
       .catch(err => console.error(err))
-      .finally(() => setLoading(false))
 
-    // Start getDogForShop immediately using state ownerId (no need to wait for visitingDog)
+    // Start getDogForShop + getDiariesForShop immediately using state ownerId
     if (!isManualFromState && ownerIdFromState) {
       setLoadingDog(true)
-      const fn = httpsCallable(getFunctions(app, 'us-central1'), 'getDogForShop')
-      fn({ shopId: shop.shopId, dogId, type: 'visitingDogs' })
+      const getDogFn = httpsCallable(getFunctions(app, 'us-central1'), 'getDogForShop')
+      getDogFn({ shopId: shop.shopId, dogId, type: 'visitingDogs' })
         .then(res => {
           const data = res.data as { dogData: FullDogData }
           setFullDog(data.dogData)
         })
         .catch(err => console.warn('getDogForShop:', err))
         .finally(() => setLoadingDog(false))
+
+      setDiariesLoading(true)
+      const getDiariesFn = httpsCallable(getFunctions(app, 'us-central1'), 'getDiariesForShop')
+      getDiariesFn({ shopId: shop.shopId, ownerId: ownerIdFromState, dogId })
+        .then(res => {
+          const { diaries: list } = res.data as { diaries: ShopDiary[] }
+          setDiaries(list)
+        })
+        .catch(err => { console.error(err); setDiariesError('日記の読み込みに失敗しました') })
+        .finally(() => setDiariesLoading(false))
     }
 
     return () => { void visitingDogPromise }
@@ -812,11 +827,11 @@ export default function KarteDetailPage() {
         title={`${displayName}のカルテ`}
       />
 
-      {loading ? (
+      {!dog ? (
         <main className="flex-1 flex items-center justify-center">
           <p className="text-sm text-gray-400">読み込み中...</p>
         </main>
-      ) : !dog ? null : (
+      ) : (
         <main className="flex-1 max-w-2xl mx-auto w-full flex flex-col">
           {/* Tabs */}
           <div className="flex border-b border-gray-100 bg-white shrink-0">
@@ -841,7 +856,15 @@ export default function KarteDetailPage() {
               <CalendarMemoTab memos={dog.memos} onSaveMemo={saveMemo} />
             )}
             {tab === 'diary' && (
-              <DiaryTab shopId={shop!.shopId} ownerId={dog.ownerId} dogId={dogId!} />
+              <DiaryTab
+                shopId={shop!.shopId}
+                ownerId={dog.ownerId}
+                dogId={dogId!}
+                diaries={diaries}
+                diariesLoading={diariesLoading}
+                diariesError={diariesError}
+                onDiariesChange={setDiaries}
+              />
             )}
           </div>
         </main>
