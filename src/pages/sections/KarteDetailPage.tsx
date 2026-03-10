@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, X, Plus, Trash2, Store, User } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, X, Plus, Trash2, Store, User, Pencil } from 'lucide-react'
 import {
   doc, getDoc, updateDoc, deleteField, serverTimestamp,
 } from 'firebase/firestore'
@@ -49,6 +49,7 @@ interface LocationState {
   ownerName?: string
   ownerPhone?: string
   isManual?: boolean
+  ownerId?: string
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -176,6 +177,8 @@ function CalendarMemoTab({
   const [editDate, setEditDate] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
   const [saving, setSaving] = useState(false)
+  const [expandedDate, setExpandedDate] = useState<string | null>(null)
+  const [deletingDate, setDeletingDate] = useState<string | null>(null)
 
   const firstDow = new Date(calYear, calMonth, 1).getDay()
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate()
@@ -203,6 +206,16 @@ function CalendarMemoTab({
       setEditDate(null)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDelete = async (dateStr: string) => {
+    setDeletingDate(dateStr)
+    try {
+      await onSaveMemo(dateStr, '')
+      setExpandedDate(null)
+    } finally {
+      setDeletingDate(null)
     }
   }
 
@@ -264,20 +277,52 @@ function CalendarMemoTab({
         </div>
       </div>
 
-      {/* Memo list */}
+      {/* Memo accordion list */}
       {sortedMemos.length > 0 && (
         <div className="space-y-2">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">連絡帳一覧</p>
-          {sortedMemos.map(([dateStr, memo]) => (
-            <button
-              key={dateStr}
-              onClick={() => openEdit(dateStr)}
-              className="w-full text-left bg-gray-50 rounded-xl p-3 hover:bg-orange-50/40 transition-colors"
-            >
-              <p className="text-xs text-gray-400 mb-1">{formatDateLabel(dateStr)}</p>
-              <p className="text-sm text-gray-700 leading-relaxed line-clamp-2">{memo.text}</p>
-            </button>
-          ))}
+          {sortedMemos.map(([dateStr, memo]) => {
+            const isOpen = expandedDate === dateStr
+            return (
+              <div key={dateStr} className="bg-gray-50 rounded-xl overflow-hidden">
+                {/* Header row — tap to expand/collapse */}
+                <button
+                  onClick={() => setExpandedDate(isOpen ? null : dateStr)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-100/60 transition-colors"
+                >
+                  <span className="text-xs font-medium text-gray-700">{formatDateLabel(dateStr)}</span>
+                  <ChevronDown
+                    size={15}
+                    className={`text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+
+                {/* Expanded content */}
+                {isOpen && (
+                  <div className="px-4 pb-3 space-y-3 border-t border-gray-100">
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap pt-3">{memo.text}</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openEdit(dateStr)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition-colors"
+                      >
+                        <Pencil size={12} />
+                        編集
+                      </button>
+                      <button
+                        onClick={() => handleDelete(dateStr)}
+                        disabled={deletingDate === dateStr}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-red-200 text-xs text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                      >
+                        <Trash2 size={12} />
+                        {deletingDate === dateStr ? '削除中...' : '削除'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -312,7 +357,7 @@ function CalendarMemoTab({
                 disabled={saving}
                 className="flex-1 py-2.5 rounded-full text-sm font-bold bg-[#FF8F0D] text-white disabled:opacity-50"
               >
-                {saving ? '保存中...' : editText.trim() ? '保存' : '削除'}
+                {saving ? '保存中...' : '保存'}
               </button>
             </div>
           </div>
@@ -669,20 +714,38 @@ export default function KarteDetailPage() {
   const { state } = useLocation() as { state: LocationState | null }
   const { shop } = useAuth()
 
-  const [dog, setDog] = useState<VisitingDogData | null>(null)
+  // Eagerly initialize from navigation state so UI shows immediately
+  const [dog, setDog] = useState<VisitingDogData | null>(() => {
+    if (!state) return null
+    return {
+      displayName: state.displayName ?? '...',
+      displayBreed: state.displayBreed,
+      displayPhoto: state.displayPhoto,
+      ownerName: state.ownerName,
+      ownerPhone: state.ownerPhone,
+      memos: {},
+      ownerId: state.ownerId,
+      isManual: state.isManual ?? false,
+    }
+  })
   const [fullDog, setFullDog] = useState<FullDogData | null>(null)
-  const [loadingDog, setLoadingDog] = useState(false)
+  const [loadingDog, setLoadingDog] = useState(!state?.isManual && !!state?.ownerId)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('info')
 
   const visitCount = state?.visitCount ?? 0
   const lastVisitDate = state?.lastVisitDate ?? null
 
-  // Load visitingDog doc
+  // Load visitingDog doc AND full dog data in parallel
   useEffect(() => {
     if (!shop || !dogId) return
     setLoading(true)
-    getDoc(doc(db, 'shops', shop.shopId, 'visitingDogs', dogId))
+
+    const ownerIdFromState = state?.ownerId
+    const isManualFromState = state?.isManual ?? false
+
+    // Parallel: visitingDog doc + getDogForShop CF (if applicable)
+    const visitingDogPromise = getDoc(doc(db, 'shops', shop.shopId, 'visitingDogs', dogId))
       .then(snap => {
         if (!snap.exists()) { navigate('/home/karte', { replace: true }); return }
         const data = snap.data()
@@ -699,21 +762,22 @@ export default function KarteDetailPage() {
       })
       .catch(err => console.error(err))
       .finally(() => setLoading(false))
-  }, [shop, dogId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load full dog data via CF
-  useEffect(() => {
-    if (!shop || !dogId || !dog || dog.isManual || !dog.ownerId) return
-    setLoadingDog(true)
-    const fn = httpsCallable(getFunctions(app, 'us-central1'), 'getDogForShop')
-    fn({ shopId: shop.shopId, dogId, type: 'visitingDogs' })
-      .then(res => {
-        const data = res.data as { dogData: FullDogData }
-        setFullDog(data.dogData)
-      })
-      .catch(err => console.warn('getDogForShop:', err))
-      .finally(() => setLoadingDog(false))
-  }, [dog?.isManual, dog?.ownerId]) // eslint-disable-line react-hooks/exhaustive-deps
+    // Start getDogForShop immediately using state ownerId (no need to wait for visitingDog)
+    if (!isManualFromState && ownerIdFromState) {
+      setLoadingDog(true)
+      const fn = httpsCallable(getFunctions(app, 'us-central1'), 'getDogForShop')
+      fn({ shopId: shop.shopId, dogId, type: 'visitingDogs' })
+        .then(res => {
+          const data = res.data as { dogData: FullDogData }
+          setFullDog(data.dogData)
+        })
+        .catch(err => console.warn('getDogForShop:', err))
+        .finally(() => setLoadingDog(false))
+    }
+
+    return () => { void visitingDogPromise }
+  }, [shop, dogId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveMemo = async (dateStr: string, text: string) => {
     if (!shop || !dogId || !dog) return

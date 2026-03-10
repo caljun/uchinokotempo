@@ -378,6 +378,7 @@ export default function KartePage() {
                     ownerName: dog.ownerName,
                     ownerPhone: dog.ownerPhone,
                     isManual: dog.isManual,
+                    ownerId: dog.ownerId,
                   },
                 })}
               />
